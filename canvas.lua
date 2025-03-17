@@ -5,6 +5,7 @@ local GestureRange = require("ui/gesturerange")
 local InputContainer = require("ui/widget/container/inputcontainer")
 local RenderImage = require("ui/renderimage")
 local UIManager = require("ui/uimanager")
+local logger = require("logger")
 
 -- Get the value at v% between a and b
 local function lerp(a, b, v) return (b - a) * v + a end
@@ -123,6 +124,7 @@ local Canvas = InputContainer:new{
 }
 
 function Canvas:init()
+    self._redraw_pending = false
     self.dimen = Geom:new{
         x = 0, y = 0,
         w = self.width or self.show_parent.dimen.w,
@@ -266,7 +268,6 @@ function Canvas:_redrawRegion(imgX, imgY, imgW, imgH)
             end
         end
     end
-    -- Optionally update the border if the dirty region might affect it.
     self._bb:paintBorder(
         self.view_x - 4,
         self.view_y - 4,
@@ -276,9 +277,9 @@ function Canvas:_redrawRegion(imgX, imgY, imgW, imgH)
         Blitbuffer.Color8(0x66),
         8
     )
+
 end
 
--- New helper: redraw the entire canvas into _bb.
 function Canvas:_fullRedraw()
     self._bb = Blitbuffer.new(self.dimen.w, self.dimen.h, self._bb and self._bb:getType() or Blitbuffer.TYPE_BB8)
     self._bb:fill(Blitbuffer.Color8(self.dark and 0x33 or 0x99))
