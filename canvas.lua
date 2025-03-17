@@ -71,7 +71,22 @@ end
 local function floodFill(bb, x, y, c, diag)
     local cur = bb:getPixel(x, y).a
     if cur == c then return end
-    fill(bb, x, y, c, cur, diag)
+
+    local queue = {{x=x, y=y}}
+    local directions = {{0,-1}, {0,1}, {-1,0}, {1,0}}
+    if diag then
+        directions = {{-1,-1}, {1,1}, {-1,1}, {1,-1}, unpack(directions)}
+    end
+
+    while #queue > 0 do
+        local p = table.remove(queue, 1)
+        if p.x >=0 and p.y >=0 and p.x < bb:getWidth() and p.y < bb:getHeight() and bb:getPixel(p.x, p.y).a == cur then
+            bb:setPixel(p.x, p.y, Blitbuffer.Color8(c))
+            for _, d in ipairs(directions) do
+                table.insert(queue, {x=p.x+d[1], y=p.y+d[2]})
+            end
+        end
+    end
 end
 
 function fill(bb, x, y, c, cur, diag)
@@ -582,6 +597,7 @@ end
 function Canvas:releasePan()
     self:_refresh("flashui")
 end
+
 
 function Canvas:doDrag()
     self._touch_px = self._touch_x
