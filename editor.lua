@@ -173,7 +173,7 @@ local menu_buttons = {
     },
 }
 
-local button_size = 108 -- self-explanatory
+local button_size = 60 -- self-explanatory
 local sep_size = (Screen:getHeight() - #button_info * button_size) / 3 -- Even space btwn button groups
 
 -- Add color options
