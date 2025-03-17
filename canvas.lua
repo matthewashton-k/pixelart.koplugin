@@ -217,15 +217,137 @@ function Canvas:_refresh(x, y, w, h, type)
     end
 end
 
--- If canvas changed, redraw and refresh
-function Canvas:_update(x, y, w, h, type)
-    if self._bb then
-        self._bb:free()
-        self._bb = nil
+-- New helper: update just the affected (dirty) region.
+function Canvas:_redrawRegion(imgX, imgY, imgW, imgH)
+    local z = self.zoom - ((self.grid and self.zoom > 4) and 1 or 0)
+    -- Compute which image cells (pixels) are affected.
+    local startX = math.max(0, math.floor(imgX))
+    local endX = math.min(self.image_w - 1, math.ceil(imgX + imgW) - 1)
+    local startY = math.max(0, math.floor(imgY))
+    local endY = math.min(self.image_h - 1, math.ceil(imgY + imgH) - 1)
+    local img = self._disp_preview and self._preview or self._image
 
-        self:_refresh(x, y, w, h, type)
+    for iy = startY, endY do
+        for ix = startX, endX do
+            local vx = ix * self.zoom + self.view_x
+            local vy = iy * self.zoom + self.view_y
+            local zw, zh
+            if self.grid_w == 1 then
+                zw = z
+            else
+                if z == self.zoom then
+                    zw = self.zoom
+                else
+                    zw = z - ((ix % self.grid_w == self.grid_w - 1) and 1 or 0)
+                end
+            end
+            if self.grid_h == 1 then
+                zh = z
+            else
+                if z == self.zoom then
+                    zh = self.zoom
+                else
+                    zh = z - ((iy % self.grid_h == self.grid_h - 1) and 1 or 0)
+                end
+            end
+
+            if self.pattern then
+                for pix = -1, 1 do
+                    for piy = -1, 1 do
+                        local cellX = vx + (self.image_w * self.zoom) * pix
+                        local cellY = vy + (self.image_h * self.zoom) * piy
+                        local cellW = (pix == 0 and piy == 0) and zw or self.zoom
+                        local cellH = (pix == 0 and piy == 0) and zh or self.zoom
+                        self._bb:paintRect(cellX, cellY, cellW, cellH, img:getPixel(ix, iy))
+                    end
+                end
+            else
+                self._bb:paintRect(vx, vy, zw, zh, img:getPixel(ix, iy))
+            end
+        end
     end
+    -- Optionally update the border if the dirty region might affect it.
+    self._bb:paintBorder(
+        self.view_x - 4,
+        self.view_y - 4,
+        self.image_w * self.zoom + 8,
+        self.image_h * self.zoom + 8,
+        4,
+        Blitbuffer.Color8(0x66),
+        8
+    )
 end
+
+-- New helper: redraw the entire canvas into _bb.
+function Canvas:_fullRedraw()
+    self._bb = Blitbuffer.new(self.dimen.w, self.dimen.h, self._bb and self._bb:getType() or Blitbuffer.TYPE_BB8)
+    self._bb:fill(Blitbuffer.Color8(self.dark and 0x33 or 0x99))
+    self._bb:paintRect(
+        self.view_x,
+        self.view_y,
+        self.image_w * self.zoom,
+        self.image_h * self.zoom,
+        Blitbuffer.Color8(0x77)
+    )
+
+    local z = self.zoom - ((self.grid and self.zoom > 4) and 1 or 0)
+    local img = self._disp_preview and self._preview or self._image
+
+    for iy = 0, self.image_h - 1 do
+        for ix = 0, self.image_w - 1 do
+            local vx = ix * self.zoom + self.view_x
+            local vy = iy * self.zoom + self.view_y
+            local zw =
+                self.grid_w == 1 and z or
+                (z == self.zoom and self.zoom or (z - ((ix % self.grid_w == self.grid_w - 1) and 1 or 0)))
+            local zh =
+                self.grid_h == 1 and z or
+                (z == self.zoom and self.zoom or (z - ((iy % self.grid_h == self.grid_h - 1) and 1 or 0)))
+            if self.pattern then
+                for pix = -1, 1 do
+                    for piy = -1, 1 do
+                        self._bb:paintRect(
+                            vx + (self.image_w * self.zoom) * pix,
+                            vy + (self.image_h * self.zoom) * piy,
+                            (pix == 0 and piy == 0) and zw or self.zoom,
+                            (pix == 0 and piy == 0) and zh or self.zoom,
+                            img:getPixel(ix, iy)
+                        )
+                    end
+                end
+            else
+                self._bb:paintRect(vx, vy, zw, zh, img:getPixel(ix, iy))
+            end
+        end
+    end
+
+    self._bb:paintBorder(
+        self.view_x - 4,
+        self.view_y - 4,
+        self.image_w * self.zoom + 8,
+        self.image_h * self.zoom + 8,
+        4,
+        Blitbuffer.Color8(0x66),
+        8
+    )
+end
+
+-- Modified _update: if a dirty rectangle is provided, update only that region.
+function Canvas:_update(x, y, w, h, type)
+    if not self._bb then
+        -- No cached buffer: do a full redraw
+        self:_fullRedraw()
+    elseif x and y and w and h then
+        -- Update only the affected region (dirty rect)
+        self:_redrawRegion(x, y, w, h)
+    else
+        -- No specific region provided: redraw everything
+        self:_fullRedraw()
+    end
+    self:_refresh(x, y, w, h, type)
+end
+
+
 
 function Canvas:paintTo(bb, x, y)
     self.dimen = Geom:new{
