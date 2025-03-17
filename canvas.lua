@@ -14,18 +14,29 @@ local function dist(x1, y1, x2, y2)
     return math.sqrt(math.pow(math.abs(x2 - x1), 2) + math.pow(math.abs(y2 - y1), 2))
 end
 
--- Draw a line using linear interpolation [SLOW BUT EASY]
 local function paintLine(bb, x1, y1, x2, y2, c, s)
-    for i = 0, 1, 1 / dist(x1, y1, x2, y2) do
-        local lx = math.floor(lerp(x1, x2, i) + 0.5)
-        local ly = math.floor(lerp(y1, y2, i) + 0.5)
+    local dx = math.abs(x2 - x1)
+    local dy = math.abs(y2 - y1)
+    local sx = x1 < x2 and 1 or -1
+    local sy = y1 < y2 and 1 or -1
+    local err = dx - dy
 
-        if lx >= 0 and ly >= 0 and lx < bb:getWidth() and ly < bb:getHeight() then
-            if s == 1 then
-                bb:setPixel(lx, ly, Blitbuffer.Color8(c))
-            else
-                bb:paintCircle(lx, ly, math.floor(s / 2), Blitbuffer.Color8(c))
-            end
+    while true do
+        if s == 1 then
+            bb:setPixel(x1, y1, Blitbuffer.Color8(c))
+        else
+            bb:paintCircle(x1, y1, math.floor(s/2), Blitbuffer.Color8(c))
+        end
+
+        if x1 == x2 and y1 == y2 then break end
+        local e2 = 2*err
+        if e2 > -dy then
+            err = err - dy
+            x1 = x1 + sx
+        end
+        if e2 < dx then
+            err = err + dx
+            y1 = y1 + sy
         end
     end
 end
